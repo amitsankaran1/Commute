@@ -94,6 +94,14 @@
       gap: 14px;
     }
 
+    .station-card.walk {
+      opacity: 0.55;
+    }
+
+    .station-card.walk:hover {
+      opacity: 1;
+    }
+
     .station-header {
       display: flex;
       align-items: flex-start;
@@ -288,7 +296,7 @@
 
     function renderStation(s) {
       const card = document.createElement('div');
-      card.className = 'station-card';
+      card.className = 'station-card' + (s.walk ? ' walk' : '');
       card.innerHTML = `
         <div class="station-header">
           <div class="color-bar" style="background:${s.color}"></div>

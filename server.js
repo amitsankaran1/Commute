@@ -32,6 +32,15 @@ const TO_OFFICE = [
     color: '#6CBE45',
   },
   {
+    label: 'Jay St-MetroTech',
+    subtitle: 'A · C · ~15 min walk if F/G are down',
+    stopIds: ['A41N'],
+    routes: ['A', 'C'],
+    feedKey: 'ace',
+    color: '#2850AD',
+    walk: true,
+  },
+  {
     label: 'Canal St',
     subtitle: 'A · C · Destination',
     stopIds: ['A32N', 'A32S'],
@@ -120,6 +129,7 @@ app.get('/api/departures', async (req, res) => {
       label: cfg.label,
       subtitle: cfg.subtitle,
       color: cfg.color,
+      walk: cfg.walk || false,
       arrivals: parseArrivals(feedMap[cfg.feedKey], cfg.stopIds, cfg.routes),
     }));
 
