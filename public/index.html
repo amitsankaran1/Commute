@@ -12,7 +12,11 @@
       --card: #161616;
       --border: #2a2a2a;
       --text: #f0f0f0;
-      --muted: #888;
+      --muted: #666;
+      --f:   #FF6319;
+      --g:   #6CBE45;
+      --ac:  #2850AD;
+      --123: #EE352E;
     }
 
     body {
@@ -24,8 +28,9 @@
       flex-direction: column;
     }
 
+    /* ── Header ── */
     header {
-      padding: 16px 20px;
+      padding: 14px 20px;
       border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
@@ -34,11 +39,10 @@
 
     .mode-toggle {
       display: flex;
-      background: #1e1e1e;
+      background: #1a1a1a;
       border: 1px solid var(--border);
       border-radius: 8px;
       overflow: hidden;
-      flex-shrink: 0;
     }
 
     .mode-btn {
@@ -53,14 +57,8 @@
       white-space: nowrap;
     }
 
-    .mode-btn.active {
-      background: #2a2a2a;
-      color: var(--text);
-    }
-
-    .mode-btn:hover:not(.active) {
-      color: #bbb;
-    }
+    .mode-btn.active { background: #2a2a2a; color: var(--text); }
+    .mode-btn:hover:not(.active) { color: #aaa; }
 
     .route-label {
       font-size: 0.78rem;
@@ -72,41 +70,181 @@
       white-space: nowrap;
     }
 
-    #status {
+    #status { font-size: 0.75rem; color: var(--muted); flex-shrink: 0; }
+
+    /* ── Main ── */
+    main { flex: 1; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+
+    /* ── Plan cards ── */
+    .plans-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    @media (max-width: 560px) {
+      .plans-row { grid-template-columns: 1fr; }
+    }
+
+    .plan-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .plan-card.plan-a { border-color: #3a3a3a; }
+
+    .plan-rank {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    .plan-leave {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .plan-leave-label {
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .plan-leave-value {
+      font-size: 2.4rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .plan-leave-value.urgent { color: #f87171; }
+    .plan-leave-value.soon   { color: #facc15; }
+    .plan-leave-value.ok     { color: var(--text); }
+
+    .plan-leave-unit {
+      font-size: 1rem;
+      font-weight: 400;
+      color: var(--muted);
+      margin-left: 4px;
+    }
+
+    .plan-arrive {
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+
+    .plan-arrive strong { color: var(--text); font-weight: 600; }
+
+    /* ── Legs ── */
+    .plan-legs {
+      display: flex;
+      flex-direction: column;
+      border-top: 1px solid var(--border);
+      padding-top: 14px;
+      gap: 0;
+    }
+
+    .leg {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 0;
+      font-size: 0.82rem;
+    }
+
+    .leg-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 800;
+      color: #fff;
+      flex-shrink: 0;
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    .leg-icon.walk     { background: #333; font-size: 0.8rem; font-weight: 400; color: var(--muted); }
+    .leg-icon.transfer { background: #333; font-size: 0.7rem; font-weight: 400; color: var(--muted); }
+
+    .leg-label { flex: 1; color: var(--text); }
+    .leg-label .departs { color: var(--muted); font-size: 0.75rem; margin-left: 6px; }
+
+    .leg-mins {
       font-size: 0.75rem;
       color: var(--muted);
+      text-align: right;
       flex-shrink: 0;
     }
 
-    main {
+    /* ── Walk fallback ── */
+    .walk-fallback {
+      background: #111;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      opacity: 0.5;
+      transition: opacity 0.2s;
+    }
+
+    .walk-fallback:hover { opacity: 1; }
+
+    .walk-fallback-label {
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      flex-shrink: 0;
+    }
+
+    .walk-fallback-desc {
       flex: 1;
+      font-size: 0.83rem;
+      color: #999;
+    }
+
+    .walk-fallback-arrive {
+      font-size: 0.83rem;
+      color: var(--muted);
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
+    .walk-fallback-arrive strong { color: #aaa; }
+
+    /* ── Evening station cards ── */
+    .stations-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 1px;
-      background: var(--border);
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 12px;
     }
 
     .station-card {
       background: var(--card);
-      padding: 20px 24px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
       display: flex;
       flex-direction: column;
       gap: 14px;
     }
 
-    .station-card.walk {
-      opacity: 0.55;
-    }
-
-    .station-card.walk:hover {
-      opacity: 1;
-    }
-
-    .station-header {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-    }
+    .station-header { display: flex; align-items: flex-start; gap: 10px; }
 
     .color-bar {
       width: 4px;
@@ -117,17 +255,8 @@
       min-height: 32px;
     }
 
-    .station-info h2 {
-      font-size: 1.15rem;
-      font-weight: 700;
-      line-height: 1.2;
-    }
-
-    .station-info p {
-      font-size: 0.8rem;
-      color: var(--muted);
-      margin-top: 2px;
-    }
+    .station-info h2 { font-size: 1.1rem; font-weight: 700; }
+    .station-info p  { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
 
     .arrivals { display: flex; flex-direction: column; }
 
@@ -135,68 +264,50 @@
       display: flex;
       align-items: center;
       gap: 12px;
-      padding: 10px 0;
+      padding: 9px 0;
       border-bottom: 1px solid var(--border);
     }
 
     .arrival-row:last-child { border-bottom: none; }
 
     .bullet {
-      width: 28px;
-      height: 28px;
+      width: 26px; height: 26px;
       border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.85rem;
-      font-weight: 800;
-      color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.8rem; font-weight: 800; color: #fff;
       flex-shrink: 0;
       font-family: 'Helvetica Neue', Arial, sans-serif;
     }
 
-    .arrival-direction {
-      font-size: 0.78rem;
-      color: var(--muted);
-      flex: 1;
-      min-width: 0;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
+    .arrival-dir { font-size: 0.77rem; color: var(--muted); flex: 1; }
 
     .arrival-time {
-      font-size: 1.4rem;
-      font-weight: 700;
+      font-size: 1.35rem; font-weight: 700;
       font-variant-numeric: tabular-nums;
       letter-spacing: -0.02em;
-      text-align: right;
       flex-shrink: 0;
     }
 
-    .arrival-time .unit {
-      font-size: 0.7rem;
-      font-weight: 400;
-      color: var(--muted);
-      margin-left: 2px;
-    }
-
+    .arrival-time .unit { font-size: 0.68rem; font-weight: 400; color: var(--muted); margin-left: 2px; }
     .arrival-time.now  { color: #22c55e; }
     .arrival-time.soon { color: #facc15; }
 
-    .no-trains {
-      color: var(--muted);
-      font-size: 0.85rem;
-      padding: 10px 0;
-    }
+    .no-trains { color: var(--muted); font-size: 0.83rem; padding: 8px 0; }
 
-    .error-msg {
-      padding: 20px 24px;
-      color: #f87171;
-      font-size: 0.9rem;
+    /* ── Error / Loading ── */
+    .msg-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      color: var(--muted);
+      font-size: 0.88rem;
       line-height: 1.6;
     }
 
+    .msg-card.error { color: #f87171; }
+
+    /* ── Footer ── */
     footer {
       padding: 10px 20px;
       border-top: 1px solid var(--border);
@@ -206,7 +317,7 @@
       gap: 12px;
     }
 
-    footer span { font-size: 0.75rem; color: var(--muted); }
+    footer span { font-size: 0.72rem; color: var(--muted); }
 
     .refresh-btn {
       background: none;
@@ -215,11 +326,11 @@
       padding: 5px 12px;
       border-radius: 6px;
       cursor: pointer;
-      font-size: 0.78rem;
+      font-size: 0.75rem;
     }
 
     .refresh-btn:hover { border-color: #555; }
-    .refresh-btn:disabled { opacity: 0.4; cursor: default; }
+    .refresh-btn:disabled { opacity: 0.35; cursor: default; }
 
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     .spinner {
@@ -229,7 +340,7 @@
       border-top-color: var(--text);
       border-radius: 50%;
       animation: spin 0.7s linear infinite;
-      margin-right: 6px;
+      margin-right: 5px;
       vertical-align: middle;
     }
   </style>
@@ -245,11 +356,7 @@
   </header>
 
   <main id="board">
-    <div class="station-card">
-      <div style="color:var(--muted);font-size:0.9rem;padding:20px 0">
-        <span class="spinner"></span> Loading…
-      </div>
-    </div>
+    <div class="msg-card"><span class="spinner"></span> Loading…</div>
   </main>
 
   <footer>
@@ -264,17 +371,12 @@
       '1': '#EE352E', '2': '#EE352E', '3': '#EE352E',
     };
 
-    const ROUTES = {
-      to:   { label: '331 Clinton St → 75 Varick St' },
-      from: { label: '75 Varick St → 331 Clinton St' },
+    const ROUTE_LABELS = {
+      to:   '331 Clinton St → 75 Varick St',
+      from: '75 Varick St → 331 Clinton St',
     };
 
-    // Auto-detect: before 2pm = to office, 2pm or later = from office
-    function autoMode() {
-      return new Date().getHours() < 14 ? 'to' : 'from';
-    }
-
-    let mode = autoMode();
+    let mode = new Date().getHours() < 14 ? 'to' : 'from';
     let manualOverride = false;
     let refreshTimer = null;
 
@@ -283,44 +385,131 @@
       if (manual) manualOverride = true;
       document.getElementById('btn-to').classList.toggle('active', m === 'to');
       document.getElementById('btn-from').classList.toggle('active', m === 'from');
-      document.getElementById('route-label').textContent = ROUTES[m].label;
+      document.getElementById('route-label').textContent = ROUTE_LABELS[m];
       load();
     }
 
-    function formatTime(minsAway) {
-      if (minsAway <= 0) return { text: 'Now', cls: 'now',  unit: '' };
-      if (minsAway <= 1)  return { text: '1',   cls: 'soon', unit: 'min' };
-      if (minsAway <= 4)  return { text: String(minsAway), cls: 'soon', unit: 'min' };
+    function fmtTime(ts) {
+      return new Date(ts * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    }
+
+    function fmtMins(minsAway) {
+      if (minsAway <= 0) return { text: 'Now',  cls: 'now',  unit: '' };
+      if (minsAway <= 1) return { text: '1',    cls: 'soon', unit: 'min' };
+      if (minsAway <= 4) return { text: String(minsAway), cls: 'soon', unit: 'min' };
       return { text: String(minsAway), cls: '', unit: 'min' };
     }
 
+    // ── Morning: plan cards ──────────────────────────────────────────
+
+    function leaveDisplay(leaveInMin) {
+      if (leaveInMin <= 0) return { text: 'Now', cls: 'urgent', unit: '' };
+      if (leaveInMin <= 3) return { text: String(leaveInMin), cls: 'urgent', unit: 'min' };
+      if (leaveInMin <= 7) return { text: String(leaveInMin), cls: 'soon',   unit: 'min' };
+      return { text: String(leaveInMin), cls: 'ok', unit: 'min' };
+    }
+
+    function renderLeg(leg) {
+      const row = document.createElement('div');
+      row.className = 'leg';
+
+      let icon;
+      if (leg.kind === 'train') {
+        icon = `<div class="leg-icon" style="background:${ROUTE_COLORS[leg.route] || '#888'}">${leg.route}</div>`;
+      } else if (leg.kind === 'walk') {
+        icon = `<div class="leg-icon walk">↑</div>`;
+      } else {
+        icon = `<div class="leg-icon transfer">⇄</div>`;
+      }
+
+      const departs = leg.ts ? `<span class="departs">${fmtTime(leg.ts)}</span>` : '';
+      row.innerHTML = `
+        ${icon}
+        <span class="leg-label">${leg.label}${departs}</span>
+        <span class="leg-mins">${leg.mins} min</span>
+      `;
+      return row;
+    }
+
+    function renderPlanCard(plan) {
+      const card = document.createElement('div');
+      card.className = 'plan-card' + (plan.rank === 'A' ? ' plan-a' : '');
+
+      const { text, cls, unit } = leaveDisplay(plan.leaveInMin);
+      const arriveStr = fmtTime(plan.officeTs);
+
+      card.innerHTML = `
+        <div class="plan-rank">Plan ${plan.rank}</div>
+        <div class="plan-leave">
+          <div class="plan-leave-label">Leave in</div>
+          <div class="plan-leave-value ${cls}">${text}${unit ? `<span class="plan-leave-unit">${unit}</span>` : ''}</div>
+        </div>
+        <div class="plan-arrive">Arrive <strong>~${arriveStr}</strong> &nbsp;·&nbsp; ${plan.routeLabel}</div>
+        <div class="plan-legs"></div>
+      `;
+
+      const legsEl = card.querySelector('.plan-legs');
+      for (const leg of plan.legs) legsEl.appendChild(renderLeg(leg));
+      return card;
+    }
+
+    function renderWalkFallback(plan) {
+      if (!plan) return null;
+      const el = document.createElement('div');
+      el.className = 'walk-fallback';
+      const arriveStr = fmtTime(plan.officeTs);
+      el.innerHTML = `
+        <div class="walk-fallback-label">If F + G down</div>
+        <div class="walk-fallback-desc">Walk 15 min to Jay St, catch A/C</div>
+        <div class="walk-fallback-arrive">Arrive <strong>~${arriveStr}</strong></div>
+      `;
+      return el;
+    }
+
+    function renderPlans(data) {
+      const board = document.getElementById('board');
+      board.innerHTML = '';
+
+      if (!data.plans?.length) {
+        const msg = document.createElement('div');
+        msg.className = 'msg-card';
+        msg.textContent = 'No viable plans found in the next hour.';
+        board.appendChild(msg);
+        return;
+      }
+
+      const row = document.createElement('div');
+      row.className = 'plans-row';
+      for (const plan of data.plans) row.appendChild(renderPlanCard(plan));
+      board.appendChild(row);
+
+      const walk = renderWalkFallback(data.walkFallback);
+      if (walk) board.appendChild(walk);
+    }
+
+    // ── Evening: station cards ───────────────────────────────────────
+
     function renderStation(s) {
       const card = document.createElement('div');
-      card.className = 'station-card' + (s.walk ? ' walk' : '');
+      card.className = 'station-card';
       card.innerHTML = `
         <div class="station-header">
           <div class="color-bar" style="background:${s.color}"></div>
-          <div class="station-info">
-            <h2>${s.label}</h2>
-            <p>${s.subtitle}</p>
-          </div>
+          <div class="station-info"><h2>${s.label}</h2><p>${s.subtitle}</p></div>
         </div>
         <div class="arrivals"></div>
       `;
-
       const arrivalsEl = card.querySelector('.arrivals');
-
       if (!s.arrivals?.length) {
         arrivalsEl.innerHTML = `<p class="no-trains">No trains in the next hour</p>`;
       } else {
         for (const a of s.arrivals) {
-          const { text, cls, unit } = formatTime(a.minsAway);
-          const color = ROUTE_COLORS[a.route] || '#888';
+          const { text, cls, unit } = fmtMins(a.minsAway);
           const row = document.createElement('div');
           row.className = 'arrival-row';
           row.innerHTML = `
-            <div class="bullet" style="background:${color}">${a.route}</div>
-            <div class="arrival-direction">${a.direction}</div>
+            <div class="bullet" style="background:${ROUTE_COLORS[a.route] || '#888'}">${a.route}</div>
+            <div class="arrival-dir">${a.direction}</div>
             <div class="arrival-time ${cls}">${text}${unit ? `<span class="unit">${unit}</span>` : ''}</div>
           `;
           arrivalsEl.appendChild(row);
@@ -329,6 +518,17 @@
       return card;
     }
 
+    function renderStations(data) {
+      const board = document.getElementById('board');
+      board.innerHTML = '';
+      const grid = document.createElement('div');
+      grid.className = 'stations-grid';
+      for (const s of data.stations) grid.appendChild(renderStation(s));
+      board.appendChild(grid);
+    }
+
+    // ── Load ─────────────────────────────────────────────────────────
+
     async function load() {
       const btn = document.getElementById('refreshBtn');
       const status = document.getElementById('status');
@@ -336,25 +536,21 @@
       status.innerHTML = '<span class="spinner"></span>';
 
       try {
-        const res = await fetch(`/api/departures?mode=${mode}`);
+        const url = mode === 'to' ? '/api/plans' : '/api/departures';
+        const res = await fetch(url);
         const data = await res.json();
         const board = document.getElementById('board');
-        board.innerHTML = '';
 
         if (!res.ok || data.error) {
-          const msg = document.createElement('div');
-          msg.className = 'error-msg';
-          msg.textContent = data.error || 'Unknown error';
-          board.appendChild(msg);
+          board.innerHTML = `<div class="msg-card error">${data.error || 'Unknown error'}</div>`;
         } else {
-          for (const station of data.stations) {
-            board.appendChild(renderStation(station));
-          }
+          if (mode === 'to') renderPlans(data);
+          else               renderStations(data);
+
           const d = new Date(data.fetchedAt);
           document.getElementById('last-updated').textContent =
             'Updated ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         }
-
         status.textContent = '';
       } catch (err) {
         status.textContent = 'Error';
@@ -362,17 +558,17 @@
       }
 
       btn.disabled = false;
-
       clearTimeout(refreshTimer);
       refreshTimer = setTimeout(() => {
-        // Re-evaluate auto mode on each refresh unless manually overridden
-        if (!manualOverride) setMode(autoMode(), false);
-        else load();
+        if (!manualOverride) {
+          const auto = new Date().getHours() < 14 ? 'to' : 'from';
+          if (auto !== mode) { setMode(auto, false); return; }
+        }
+        load();
       }, 30_000);
     }
 
-    // Init
-    setMode(autoMode(), false);
+    setMode(mode, false);
   </script>
 </body>
 </html>
