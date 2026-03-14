@@ -5,20 +5,18 @@ const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const MTA_API_KEY = process.env.MTA_API_KEY || '';
 
-// MTA GTFS-RT feed URLs
+// MTA GTFS-RT feed URLs (no auth required)
 const FEEDS = {
   bdfm: 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-bdfm', // F train
   ace:  'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace',   // A, C trains
-  nqrw: 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-nqrw',  // not needed but added
   '123': 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs',      // 1, 2, 3 trains
 };
 
 // Stop IDs (NYCT GTFS convention: stopId + "N" northbound, "S" southbound)
 // Bergen Street F — northbound toward Manhattan
-// Canal Street 1/2/3 — stop 120, show northbound (uptown) + southbound (downtown)
-// Canal Street A/C — stop A32, show both directions
+// Canal Street 1/2/3 — stop 120
+// Canal Street A/C — stop A32
 const STOPS_CONFIG = [
   {
     label: 'Bergen St',
@@ -47,10 +45,7 @@ const STOPS_CONFIG = [
 ];
 
 async function fetchFeed(url) {
-  const headers = {};
-  if (MTA_API_KEY) headers['x-api-key'] = MTA_API_KEY;
-
-  const res = await fetch(url, { headers });
+  const res = await fetch(url);
   if (!res.ok) throw new Error(`MTA feed error: ${res.status} ${res.statusText}`);
   const buffer = await res.arrayBuffer();
   return GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(
@@ -94,14 +89,7 @@ function parseArrivals(feed, stopIds, allowedRoutes) {
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/api/departures', async (req, res) => {
-  if (!MTA_API_KEY) {
-    return res.status(400).json({
-      error: 'MTA_API_KEY not set. Set the environment variable and restart.',
-    });
-  }
-
   try {
-    // Fetch needed feeds in parallel
     const feedKeys = [...new Set(STOPS_CONFIG.map((s) => s.feedKey))];
     const feedMap = {};
     await Promise.all(
@@ -125,10 +113,5 @@ app.get('/api/departures', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`\nNYC Commute Board running at http://localhost:${PORT}`);
-  if (!MTA_API_KEY) {
-    console.log('\n⚠  MTA_API_KEY is not set!');
-    console.log('   Get a free key at https://api.mta.info/');
-    console.log('   Then run: MTA_API_KEY=your_key node server.js\n');
-  }
+  console.log(`NYC Commute Board → http://localhost:${PORT}`);
 });
