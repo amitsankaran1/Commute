@@ -10,29 +10,30 @@ const FEEDS = {
   bdfm:  'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-bdfm',
   ace:   'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace',
   '123': 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs',
+  g:     'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-g',
 };
 
-// TO OFFICE — depart Bergen St, arrive Canal St
+// TO OFFICE — depart Bergen St → transfer to A/C → Canal St
 const TO_OFFICE = [
   {
     label: 'Bergen St',
-    subtitle: 'F · Northbound to Manhattan',
+    subtitle: 'F · to Jay St, transfer to A/C',
     stopIds: ['F20N'],
     routes: ['F'],
     feedKey: 'bdfm',
     color: '#FF6319',
   },
   {
-    label: 'Canal St',
-    subtitle: '1 · 2 · 3',
-    stopIds: ['120N', '120S'],
-    routes: ['1', '2', '3'],
-    feedKey: '123',
-    color: '#EE352E',
+    label: 'Bergen St',
+    subtitle: 'G · Backup → Hoyt-Schermerhorn for A/C',
+    stopIds: ['F20N'],
+    routes: ['G'],
+    feedKey: 'g',
+    color: '#6CBE45',
   },
   {
     label: 'Canal St',
-    subtitle: 'A · C',
+    subtitle: 'A · C · Destination',
     stopIds: ['A32N', 'A32S'],
     routes: ['A', 'C'],
     feedKey: 'ace',
