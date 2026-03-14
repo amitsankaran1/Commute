@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Commute Board</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0e0e0e;
+      --card: #161616;
+      --border: #2a2a2a;
+      --text: #f0f0f0;
+      --muted: #888;
+      --f: #FF6319;
+      --ace: #2850AD;
+      --123: #EE352E;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100svh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 20px 24px 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+    }
+
+    header h1 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .route-label {
+      font-size: 0.78rem;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #status {
+      margin-left: auto;
+      font-size: 0.75rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1px;
+      background: var(--border);
+    }
+
+    .station-card {
+      background: var(--card);
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .station-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .color-bar {
+      width: 4px;
+      border-radius: 2px;
+      flex-shrink: 0;
+      margin-top: 2px;
+      align-self: stretch;
+      min-height: 32px;
+    }
+
+    .station-info h2 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .station-info p {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .arrivals {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .arrival-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .arrival-row:last-child {
+      border-bottom: none;
+    }
+
+    .bullet {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      font-weight: 800;
+      color: #fff;
+      flex-shrink: 0;
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    .arrival-direction {
+      font-size: 0.78rem;
+      color: var(--muted);
+      flex: 1;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .arrival-time {
+      font-size: 1.4rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .arrival-time .unit {
+      font-size: 0.7rem;
+      font-weight: 400;
+      color: var(--muted);
+      margin-left: 2px;
+    }
+
+    .arrival-time.now {
+      color: #22c55e;
+    }
+
+    .arrival-time.soon {
+      color: #facc15;
+    }
+
+    .no-trains {
+      color: var(--muted);
+      font-size: 0.85rem;
+      padding: 10px 0;
+    }
+
+    .error-msg {
+      padding: 20px 24px;
+      color: #f87171;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    .error-msg a {
+      color: #60a5fa;
+    }
+
+    footer {
+      padding: 12px 24px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    footer span {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    .refresh-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 5px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.78rem;
+      transition: border-color 0.15s;
+    }
+
+    .refresh-btn:hover { border-color: #555; }
+    .refresh-btn:disabled { opacity: 0.4; cursor: default; }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .loading-spinner {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border: 2px solid var(--muted);
+      border-top-color: var(--text);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Commute Board</h1>
+    <span class="route-label">331 Clinton St, Brooklyn → 75 Varick St, Manhattan</span>
+    <span id="status"></span>
+  </header>
+
+  <main id="board">
+    <div class="station-card">
+      <div style="color: var(--muted); font-size: 0.9rem; padding: 20px 0;">
+        <span class="loading-spinner"></span> Loading train data…
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <span id="last-updated">–</span>
+    <button class="refresh-btn" id="refreshBtn" onclick="load()">Refresh</button>
+  </footer>
+
+  <script>
+    const ROUTE_COLORS = {
+      'F': '#FF6319',
+      'A': '#2850AD',
+      'C': '#2850AD',
+      'E': '#2850AD',
+      '1': '#EE352E',
+      '2': '#EE352E',
+      '3': '#EE352E',
+    };
+
+    let refreshTimer = null;
+
+    function formatTime(minsAway) {
+      if (minsAway <= 0) return { text: 'Now', cls: 'now', unit: '' };
+      if (minsAway === 1) return { text: '1', cls: 'soon', unit: 'min' };
+      if (minsAway <= 4) return { text: String(minsAway), cls: 'soon', unit: 'min' };
+      return { text: String(minsAway), cls: '', unit: 'min' };
+    }
+
+    function renderStation(s) {
+      const card = document.createElement('div');
+      card.className = 'station-card';
+
+      card.innerHTML = `
+        <div class="station-header">
+          <div class="color-bar" style="background:${s.color}"></div>
+          <div class="station-info">
+            <h2>${s.label}</h2>
+            <p>${s.subtitle}</p>
+          </div>
+        </div>
+        <div class="arrivals" id="arrivals-${encodeURIComponent(s.label + s.subtitle)}"></div>
+      `;
+
+      const arrivalsEl = card.querySelector('.arrivals');
+
+      if (!s.arrivals || s.arrivals.length === 0) {
+        arrivalsEl.innerHTML = `<p class="no-trains">No trains in the next hour</p>`;
+      } else {
+        for (const a of s.arrivals) {
+          const { text, cls, unit } = formatTime(a.minsAway);
+          const color = ROUTE_COLORS[a.route] || '#888';
+          const row = document.createElement('div');
+          row.className = 'arrival-row';
+          row.innerHTML = `
+            <div class="bullet" style="background:${color}">${a.route}</div>
+            <div class="arrival-direction">${a.direction}</div>
+            <div class="arrival-time ${cls}">${text}${unit ? `<span class="unit">${unit}</span>` : ''}</div>
+          `;
+          arrivalsEl.appendChild(row);
+        }
+      }
+
+      return card;
+    }
+
+    async function load() {
+      const btn = document.getElementById('refreshBtn');
+      const status = document.getElementById('status');
+      btn.disabled = true;
+      status.innerHTML = '<span class="loading-spinner"></span>';
+
+      try {
+        const res = await fetch('/api/departures');
+        const data = await res.json();
+
+        const board = document.getElementById('board');
+        board.innerHTML = '';
+
+        if (!res.ok || data.error) {
+          const msg = document.createElement('div');
+          msg.className = 'error-msg';
+          msg.innerHTML = `
+            <strong>Error:</strong> ${data.error || 'Unknown error'}<br><br>
+            ${data.error && data.error.includes('MTA_API_KEY')
+              ? `Get a free API key at <a href="https://api.mta.info/" target="_blank">api.mta.info</a>, then restart the server with:<br><code>MTA_API_KEY=your_key node server.js</code>`
+              : ''}
+          `;
+          board.appendChild(msg);
+        } else {
+          for (const station of data.stations) {
+            board.appendChild(renderStation(station));
+          }
+          const d = new Date(data.fetchedAt);
+          document.getElementById('last-updated').textContent =
+            'Updated ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+
+        status.textContent = '';
+      } catch (err) {
+        status.textContent = 'Error';
+        console.error(err);
+      }
+
+      btn.disabled = false;
+
+      // Auto-refresh every 30 seconds
+      clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(load, 30_000);
+    }
+
+    load();
+  </script>
+</body>
+</html>

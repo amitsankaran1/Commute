@@ -1,0 +1,15 @@
+{
+  "name": "nyc-commute-board",
+  "version": "1.0.0",
+  "description": "NYC train departures for Bergen St → Canal St commute",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "gtfs-realtime-bindings": "^1.1.1",
+    "node-fetch": "^2.7.0"
+  }
+}
