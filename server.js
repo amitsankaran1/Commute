@@ -13,19 +13,22 @@ const FEEDS = {
   g:     'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-g',
 };
 
-// ── Travel time estimates in minutes ─────────────────────────────────
-// Tune these to match your actual experience.
+// ── Travel time estimates (minutes) ──────────────────────────────────
 const T = {
   walkHomeToBergen:   6,   // 331 Clinton St → Bergen St station
   walkHomeToJaySt:   15,   // 331 Clinton St → Jay St-MetroTech (walk fallback)
-  fRide:              3,   // F: Bergen St → Jay St-MetroTech (1 stop)
+  fRide:              3,   // F: Bergen St → Jay St (1 stop)
   gRide:              3,   // G: Bergen St → Hoyt-Schermerhorn (1 stop)
-  xferJaySt:          2,   // F → A/C transfer at Jay St
-  xferHoyt:           2,   // G → A/C transfer at Hoyt-Schermerhorn
+  xferJaySt:          1,   // F→A/C at Jay St: walk across platform, negligible
+  xferHoyt:           3,   // G→A/C at Hoyt: harder transfer
   acFromJaySt:       10,   // A/C: Jay St → Canal St
   acFromHoyt:        13,   // A/C: Hoyt-Schermerhorn → Canal St
-  walkCanalToOffice:  3,   // Canal St A/C exit → 75 Varick St
+  walkCanalToOffice:  3,   // Canal St A/C → 75 Varick St
 };
+
+// G is only shown as Plan B if it arrives within this many minutes of Plan A.
+// Outside this window it's too slow to be worth the harder Hoyt transfer.
+const PLAN_B_MAX_DELTA_MINS = 5;
 
 // FROM OFFICE — raw departures from Canal St
 const FROM_OFFICE = [
@@ -54,17 +57,14 @@ async function fetchFeed(url) {
   return GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(new Uint8Array(buffer));
 }
 
-// Returns sorted list of upcoming train timestamps at given stops
 function upcoming(feed, stopIds, allowedRoutes) {
   const now = Math.floor(Date.now() / 1000);
   const results = [];
-
   for (const entity of feed.entity) {
     if (!entity.tripUpdate) continue;
     const { trip, stopTimeUpdate } = entity.tripUpdate;
     const route = trip.routeId;
     if (!allowedRoutes.includes(route)) continue;
-
     for (const stu of stopTimeUpdate) {
       if (!stopIds.includes(stu.stopId)) continue;
       const t = stu.departure?.time || stu.arrival?.time;
@@ -74,100 +74,127 @@ function upcoming(feed, stopIds, allowedRoutes) {
       results.push({ route, ts });
     }
   }
-
   results.sort((a, b) => a.ts - b.ts);
   return results;
+}
+
+function buildFPlan(f, acAtJay, now) {
+  const arrivalAtJay = f.ts + T.fRide * 60;
+  const ac = acAtJay.find(t => t.ts >= arrivalAtJay + T.xferJaySt * 60);
+  if (!ac) return null;
+  const officeTs = ac.ts + (T.acFromJaySt + T.walkCanalToOffice) * 60;
+  const leaveInMin = Math.round((f.ts - T.walkHomeToBergen * 60 - now) / 60);
+  if (leaveInMin < -3) return null;
+  return {
+    routeLabel: 'F → A/C',
+    leaveInMin,
+    officeTs,
+    legs: [
+      { kind: 'walk',  label: 'Walk to Bergen St',   mins: T.walkHomeToBergen },
+      { kind: 'train', route: 'F',       label: 'Bergen St → Jay St',  mins: T.fRide,        ts: f.ts  },
+      { kind: 'train', route: ac.route,  label: 'Jay St → Canal St',   mins: T.acFromJaySt,  ts: ac.ts },
+      { kind: 'walk',  label: 'Walk to 75 Varick',   mins: T.walkCanalToOffice },
+    ],
+  };
+}
+
+function buildGPlan(g, acAtHoyt, now) {
+  const readyAtHoyt = g.ts + (T.gRide + T.xferHoyt) * 60;
+  const ac = acAtHoyt.find(t => t.ts >= readyAtHoyt);
+  if (!ac) return null;
+  const officeTs = ac.ts + (T.acFromHoyt + T.walkCanalToOffice) * 60;
+  const leaveInMin = Math.round((g.ts - T.walkHomeToBergen * 60 - now) / 60);
+  if (leaveInMin < -3) return null;
+  return {
+    routeLabel: 'G → A/C',
+    leaveInMin,
+    officeTs,
+    legs: [
+      { kind: 'walk',     label: 'Walk to Bergen St',            mins: T.walkHomeToBergen },
+      { kind: 'train',    route: 'G',       label: 'Bergen St → Hoyt',  mins: T.gRide,       ts: g.ts  },
+      { kind: 'transfer', label: 'Transfer to A/C at Hoyt',     mins: T.xferHoyt },
+      { kind: 'train',    route: ac.route,  label: 'Hoyt → Canal St',   mins: T.acFromHoyt,  ts: ac.ts },
+      { kind: 'walk',     label: 'Walk to 75 Varick',            mins: T.walkCanalToOffice },
+    ],
+  };
 }
 
 function computePlans(feeds) {
   const now = Math.floor(Date.now() / 1000);
 
-  const fTrains    = upcoming(feeds.bdfm, ['F20N'], ['F']);
-  const gTrains    = upcoming(feeds.g,    ['F20N'], ['G']);
-  const acAtJay    = upcoming(feeds.ace,  ['A41N'], ['A', 'C']);
-  const acAtHoyt   = upcoming(feeds.ace,  ['A42N'], ['A', 'C']);
+  const fTrains  = upcoming(feeds.bdfm, ['F20N'], ['F']);
+  const gTrains  = upcoming(feeds.g,    ['F20N'], ['G']);
+  const acAtJay  = upcoming(feeds.ace,  ['A41N'], ['A', 'C']);
+  const acAtHoyt = upcoming(feeds.ace,  ['A42N'], ['A', 'C']);
 
-  const plans = [];
-
-  // Route: F → A/C via Jay St
+  // Build first two valid F plans (current train + next train)
+  const fPlans = [];
   for (const f of fTrains) {
-    const readyAtJay = f.ts + (T.fRide + T.xferJaySt) * 60;
-    const ac = acAtJay.find(t => t.ts >= readyAtJay);
-    if (!ac) continue;
-
-    const officeTs  = ac.ts + (T.acFromJaySt + T.walkCanalToOffice) * 60;
-    const leaveInMin = Math.round((f.ts - T.walkHomeToBergen * 60 - now) / 60);
-    if (leaveInMin < -3) continue; // already gone
-
-    plans.push({
-      routeLabel: 'F → A/C',
-      leaveInMin,
-      officeTs,
-      legs: [
-        { kind: 'walk',     label: 'Walk to Bergen St',        mins: T.walkHomeToBergen },
-        { kind: 'train',    route: f.route,  label: 'Bergen St → Jay St', mins: T.fRide,        ts: f.ts  },
-        { kind: 'transfer', label: 'Transfer to A/C at Jay St',            mins: T.xferJaySt    },
-        { kind: 'train',    route: ac.route, label: 'Jay St → Canal St',  mins: T.acFromJaySt, ts: ac.ts },
-        { kind: 'walk',     label: 'Walk to 75 Varick',         mins: T.walkCanalToOffice },
-      ],
-    });
+    const plan = buildFPlan(f, acAtJay, now);
+    if (plan) fPlans.push(plan);
+    if (fPlans.length >= 2) break;
   }
 
-  // Route: G → A/C via Hoyt-Schermerhorn
+  // Build best G plan
+  let gPlan = null;
   for (const g of gTrains) {
-    const readyAtHoyt = g.ts + (T.gRide + T.xferHoyt) * 60;
-    const ac = acAtHoyt.find(t => t.ts >= readyAtHoyt);
-    if (!ac) continue;
-
-    const officeTs   = ac.ts + (T.acFromHoyt + T.walkCanalToOffice) * 60;
-    const leaveInMin = Math.round((g.ts - T.walkHomeToBergen * 60 - now) / 60);
-    if (leaveInMin < -3) continue;
-
-    plans.push({
-      routeLabel: 'G → A/C',
-      leaveInMin,
-      officeTs,
-      legs: [
-        { kind: 'walk',     label: 'Walk to Bergen St',                    mins: T.walkHomeToBergen },
-        { kind: 'train',    route: g.route,  label: 'Bergen St → Hoyt',   mins: T.gRide,        ts: g.ts  },
-        { kind: 'transfer', label: 'Transfer to A/C at Hoyt',              mins: T.xferHoyt     },
-        { kind: 'train',    route: ac.route, label: 'Hoyt → Canal St',     mins: T.acFromHoyt,  ts: ac.ts },
-        { kind: 'walk',     label: 'Walk to 75 Varick',                    mins: T.walkCanalToOffice },
-      ],
-    });
+    const plan = buildGPlan(g, acAtHoyt, now);
+    if (plan) { gPlan = plan; break; }
   }
 
-  // Sort all plans by arrival time, keep top 2 as Plan A / Plan B
-  plans.sort((a, b) => a.officeTs - b.officeTs);
-  const top2 = plans.slice(0, 2).map((p, i) => ({ ...p, rank: i === 0 ? 'A' : 'B' }));
+  // Determine Plan A (F primary), Plan A next (following F), Plan B (G if viable)
+  const fBest = fPlans[0] || null;
+  const fNext = fPlans[1] || null;
 
-  // Walk fallback: leave now, walk to Jay St, catch next A/C
+  let planA = null, planANext = null, planB = null, planBDeltaMins = null;
+
+  if (fBest && gPlan) {
+    planBDeltaMins = Math.round((gPlan.officeTs - fBest.officeTs) / 60);
+
+    if (planBDeltaMins < 0) {
+      // G is actually faster — G becomes Plan A, F is Plan B
+      planA     = { ...gPlan, rank: 'A' };
+      planANext = null;
+      planB     = Math.abs(planBDeltaMins) <= PLAN_B_MAX_DELTA_MINS
+        ? { ...fBest, rank: 'B', deltaMinutes: Math.abs(planBDeltaMins) }
+        : null;
+      planBDeltaMins = Math.abs(planBDeltaMins);
+    } else {
+      // F is faster or same
+      planA     = { ...fBest, rank: 'A' };
+      planANext = fNext;
+      planB     = planBDeltaMins <= PLAN_B_MAX_DELTA_MINS
+        ? { ...gPlan, rank: 'B', deltaMinutes: planBDeltaMins }
+        : null;
+    }
+  } else if (fBest) {
+    planA     = { ...fBest, rank: 'A' };
+    planANext = fNext;
+  } else if (gPlan) {
+    // F totally down
+    planA = { ...gPlan, rank: 'A' };
+  }
+
+  // Walk fallback: leave now, walk 15 min to Jay St
   const walkReadyAtJay = now + T.walkHomeToJaySt * 60;
   const acWalk = acAtJay.find(t => t.ts >= walkReadyAtJay);
   const walkFallback = acWalk ? {
-    routeLabel: 'Walk → A/C',
-    leaveInMin: 0,
     officeTs: acWalk.ts + (T.acFromJaySt + T.walkCanalToOffice) * 60,
-    legs: [
-      { kind: 'walk',  label: 'Walk to Jay St-MetroTech', mins: T.walkHomeToJaySt },
-      { kind: 'train', route: acWalk.route, label: 'Jay St → Canal St', mins: T.acFromJaySt, ts: acWalk.ts },
-      { kind: 'walk',  label: 'Walk to 75 Varick',        mins: T.walkCanalToOffice },
-    ],
+    acRoute:  acWalk.route,
+    acTs:     acWalk.ts,
   } : null;
 
-  return { plans: top2, walkFallback, fetchedAt: Date.now() };
+  return { planA, planANext, planB, planBDeltaMins, walkFallback, fetchedAt: Date.now() };
 }
 
 function parseArrivals(feed, stopIds, allowedRoutes) {
   const now = Math.floor(Date.now() / 1000);
   const arrivals = [];
-
   for (const entity of feed.entity) {
     if (!entity.tripUpdate) continue;
     const { trip, stopTimeUpdate } = entity.tripUpdate;
     const route = trip.routeId;
     if (!allowedRoutes.includes(route)) continue;
-
     for (const stu of stopTimeUpdate) {
       if (!stopIds.includes(stu.stopId)) continue;
       const t = stu.departure?.time || stu.arrival?.time;
@@ -178,14 +205,12 @@ function parseArrivals(feed, stopIds, allowedRoutes) {
       arrivals.push({ route, minsAway, direction: stu.stopId.endsWith('N') ? 'Northbound' : 'Southbound', timestamp: seconds });
     }
   }
-
   arrivals.sort((a, b) => a.timestamp - b.timestamp);
   return arrivals.slice(0, 8);
 }
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Morning: computed plans
 app.get('/api/plans', async (req, res) => {
   try {
     const [bdfm, g, ace] = await Promise.all([
@@ -200,20 +225,15 @@ app.get('/api/plans', async (req, res) => {
   }
 });
 
-// Evening: raw departures
 app.get('/api/departures', async (req, res) => {
   try {
     const feedKeys = [...new Set(FROM_OFFICE.map(s => s.feedKey))];
     const feedMap = {};
     await Promise.all(feedKeys.map(async key => { feedMap[key] = await fetchFeed(FEEDS[key]); }));
-
     const stations = FROM_OFFICE.map(cfg => ({
-      label: cfg.label,
-      subtitle: cfg.subtitle,
-      color: cfg.color,
+      label: cfg.label, subtitle: cfg.subtitle, color: cfg.color,
       arrivals: parseArrivals(feedMap[cfg.feedKey], cfg.stopIds, cfg.routes),
     }));
-
     res.json({ stations, fetchedAt: Date.now() });
   } catch (err) {
     console.error('Departures error:', err.message);

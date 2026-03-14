@@ -227,6 +227,33 @@
 
     .walk-fallback-arrive strong { color: #aaa; }
 
+    .plan-next {
+      font-size: 0.78rem;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+      margin-top: 2px;
+    }
+
+    .plan-next-label { display: block; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 3px; }
+    .plan-next strong { color: #aaa; }
+
+    .plan-suppressed {
+      opacity: 0.35;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      justify-content: flex-start;
+    }
+
+    .plan-suppressed:hover { opacity: 0.7; }
+
+    .plan-suppressed-msg {
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
     /* ── Evening station cards ── */
     .stations-grid {
       display: grid;
@@ -412,7 +439,6 @@
     function renderLeg(leg) {
       const row = document.createElement('div');
       row.className = 'leg';
-
       let icon;
       if (leg.kind === 'train') {
         icon = `<div class="leg-icon" style="background:${ROUTE_COLORS[leg.route] || '#888'}">${leg.route}</div>`;
@@ -421,7 +447,6 @@
       } else {
         icon = `<div class="leg-icon transfer">⇄</div>`;
       }
-
       const departs = leg.ts ? `<span class="departs">${fmtTime(leg.ts)}</span>` : '';
       row.innerHTML = `
         ${icon}
@@ -431,12 +456,24 @@
       return row;
     }
 
-    function renderPlanCard(plan) {
+    function renderPlanCard(plan, nextPlan) {
       const card = document.createElement('div');
       card.className = 'plan-card' + (plan.rank === 'A' ? ' plan-a' : '');
 
       const { text, cls, unit } = leaveDisplay(plan.leaveInMin);
       const arriveStr = fmtTime(plan.officeTs);
+
+      // Next-train row for Plan A
+      let nextHtml = '';
+      if (nextPlan) {
+        const nd = leaveDisplay(nextPlan.leaveInMin);
+        nextHtml = `
+          <div class="plan-next">
+            <span class="plan-next-label">or next train:</span>
+            leave in <strong>${nd.text}${nd.unit ? ' ' + nd.unit : ''}</strong>
+            → arrive <strong>~${fmtTime(nextPlan.officeTs)}</strong>
+          </div>`;
+      }
 
       card.innerHTML = `
         <div class="plan-rank">Plan ${plan.rank}</div>
@@ -446,6 +483,7 @@
         </div>
         <div class="plan-arrive">Arrive <strong>~${arriveStr}</strong> &nbsp;·&nbsp; ${plan.routeLabel}</div>
         <div class="plan-legs"></div>
+        ${nextHtml}
       `;
 
       const legsEl = card.querySelector('.plan-legs');
@@ -460,7 +498,7 @@
       const arriveStr = fmtTime(plan.officeTs);
       el.innerHTML = `
         <div class="walk-fallback-label">If F + G down</div>
-        <div class="walk-fallback-desc">Walk 15 min to Jay St, catch A/C</div>
+        <div class="walk-fallback-desc">Walk 15 min to Jay St, catch ${plan.acRoute} at ${fmtTime(plan.acTs)}</div>
         <div class="walk-fallback-arrive">Arrive <strong>~${arriveStr}</strong></div>
       `;
       return el;
@@ -470,17 +508,34 @@
       const board = document.getElementById('board');
       board.innerHTML = '';
 
-      if (!data.plans?.length) {
-        const msg = document.createElement('div');
-        msg.className = 'msg-card';
-        msg.textContent = 'No viable plans found in the next hour.';
-        board.appendChild(msg);
+      if (!data.planA) {
+        board.innerHTML = `<div class="msg-card">No viable plans in the next hour.</div>`;
         return;
       }
 
       const row = document.createElement('div');
       row.className = 'plans-row';
-      for (const plan of data.plans) row.appendChild(renderPlanCard(plan));
+
+      // Plan A — always shown, with next-train option if available
+      row.appendChild(renderPlanCard(data.planA, data.planANext));
+
+      // Plan B — only shown if G route is within threshold
+      if (data.planB) {
+        row.appendChild(renderPlanCard(data.planB, null));
+      } else if (data.planBDeltaMins !== null) {
+        // G exists but is too slow — show a suppressed note
+        const note = document.createElement('div');
+        note.className = 'plan-card plan-suppressed';
+        note.innerHTML = `
+          <div class="plan-rank">G → A/C</div>
+          <div class="plan-suppressed-msg">
+            ${data.planBDeltaMins} min slower than Plan A today.<br>
+            Not worth the harder Hoyt transfer.
+          </div>
+        `;
+        row.appendChild(note);
+      }
+
       board.appendChild(row);
 
       const walk = renderWalkFallback(data.walkFallback);
