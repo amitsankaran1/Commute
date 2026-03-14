@@ -40,31 +40,23 @@ const TO_OFFICE = [
   },
 ];
 
-// FROM OFFICE — depart Canal St, arrive Bergen St
+// FROM OFFICE — two options from Canal St
 const FROM_OFFICE = [
   {
     label: 'Canal St',
-    subtitle: 'A · C · Southbound → Jay St',
-    stopIds: ['A32S'],
-    routes: ['A', 'C'],
-    feedKey: 'ace',
-    color: '#2850AD',
-  },
-  {
-    label: 'Canal St',
-    subtitle: '1 · 2 · 3 · Southbound',
-    stopIds: ['120S'],
+    subtitle: '1 · 2 · 3 · Uptown',
+    stopIds: ['120N'],
     routes: ['1', '2', '3'],
     feedKey: '123',
     color: '#EE352E',
   },
   {
-    label: 'Bergen St',
-    subtitle: 'F · Southbound to Brooklyn',
-    stopIds: ['F20S'],
-    routes: ['F'],
-    feedKey: 'bdfm',
-    color: '#FF6319',
+    label: 'Canal St',
+    subtitle: 'A · C · Downtown → Jay St for F',
+    stopIds: ['A32S'],
+    routes: ['A', 'C'],
+    feedKey: 'ace',
+    color: '#2850AD',
   },
 ];
 
