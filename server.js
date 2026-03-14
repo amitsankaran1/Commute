@@ -6,21 +6,17 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// MTA GTFS-RT feed URLs (no auth required)
 const FEEDS = {
-  bdfm: 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-bdfm', // F train
-  ace:  'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace',   // A, C trains
-  '123': 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs',      // 1, 2, 3 trains
+  bdfm:  'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-bdfm',
+  ace:   'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace',
+  '123': 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs',
 };
 
-// Stop IDs (NYCT GTFS convention: stopId + "N" northbound, "S" southbound)
-// Bergen Street F — northbound toward Manhattan
-// Canal Street 1/2/3 — stop 120
-// Canal Street A/C — stop A32
-const STOPS_CONFIG = [
+// TO OFFICE — depart Bergen St, arrive Canal St
+const TO_OFFICE = [
   {
     label: 'Bergen St',
-    subtitle: 'F train · Northbound to Manhattan',
+    subtitle: 'F · Northbound to Manhattan',
     stopIds: ['F20N'],
     routes: ['F'],
     feedKey: 'bdfm',
@@ -28,7 +24,7 @@ const STOPS_CONFIG = [
   },
   {
     label: 'Canal St',
-    subtitle: '1 · 2 · 3 trains',
+    subtitle: '1 · 2 · 3',
     stopIds: ['120N', '120S'],
     routes: ['1', '2', '3'],
     feedKey: '123',
@@ -36,7 +32,7 @@ const STOPS_CONFIG = [
   },
   {
     label: 'Canal St',
-    subtitle: 'A · C trains',
+    subtitle: 'A · C',
     stopIds: ['A32N', 'A32S'],
     routes: ['A', 'C'],
     feedKey: 'ace',
@@ -44,13 +40,39 @@ const STOPS_CONFIG = [
   },
 ];
 
+// FROM OFFICE — depart Canal St, arrive Bergen St
+const FROM_OFFICE = [
+  {
+    label: 'Canal St',
+    subtitle: 'A · C · Southbound → Jay St',
+    stopIds: ['A32S'],
+    routes: ['A', 'C'],
+    feedKey: 'ace',
+    color: '#2850AD',
+  },
+  {
+    label: 'Canal St',
+    subtitle: '1 · 2 · 3 · Southbound',
+    stopIds: ['120S'],
+    routes: ['1', '2', '3'],
+    feedKey: '123',
+    color: '#EE352E',
+  },
+  {
+    label: 'Bergen St',
+    subtitle: 'F · Southbound to Brooklyn',
+    stopIds: ['F20S'],
+    routes: ['F'],
+    feedKey: 'bdfm',
+    color: '#FF6319',
+  },
+];
+
 async function fetchFeed(url) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`MTA feed error: ${res.status} ${res.statusText}`);
   const buffer = await res.arrayBuffer();
-  return GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(
-    new Uint8Array(buffer)
-  );
+  return GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(new Uint8Array(buffer));
 }
 
 function parseArrivals(feed, stopIds, allowedRoutes) {
@@ -89,8 +111,11 @@ function parseArrivals(feed, stopIds, allowedRoutes) {
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/api/departures', async (req, res) => {
+  const mode = req.query.mode === 'from' ? 'from' : 'to';
+  const config = mode === 'from' ? FROM_OFFICE : TO_OFFICE;
+
   try {
-    const feedKeys = [...new Set(STOPS_CONFIG.map((s) => s.feedKey))];
+    const feedKeys = [...new Set(config.map((s) => s.feedKey))];
     const feedMap = {};
     await Promise.all(
       feedKeys.map(async (key) => {
@@ -98,14 +123,14 @@ app.get('/api/departures', async (req, res) => {
       })
     );
 
-    const stations = STOPS_CONFIG.map((cfg) => ({
+    const stations = config.map((cfg) => ({
       label: cfg.label,
       subtitle: cfg.subtitle,
       color: cfg.color,
       arrivals: parseArrivals(feedMap[cfg.feedKey], cfg.stopIds, cfg.routes),
     }));
 
-    res.json({ stations, fetchedAt: Date.now() });
+    res.json({ stations, mode, fetchedAt: Date.now() });
   } catch (err) {
     console.error('Feed error:', err.message);
     res.status(500).json({ error: err.message });

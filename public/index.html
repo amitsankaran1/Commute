@@ -13,9 +13,6 @@
       --border: #2a2a2a;
       --text: #f0f0f0;
       --muted: #888;
-      --f: #FF6319;
-      --ace: #2850AD;
-      --123: #EE352E;
     }
 
     body {
@@ -28,32 +25,57 @@
     }
 
     header {
-      padding: 20px 24px 12px;
+      padding: 16px 20px;
       border-bottom: 1px solid var(--border);
       display: flex;
-      align-items: baseline;
+      align-items: center;
       gap: 12px;
     }
 
-    header h1 {
-      font-size: 1.1rem;
-      font-weight: 600;
-      letter-spacing: 0.02em;
+    .mode-toggle {
+      display: flex;
+      background: #1e1e1e;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .mode-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      padding: 6px 14px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: color 0.15s, background 0.15s;
+      white-space: nowrap;
+    }
+
+    .mode-btn.active {
+      background: #2a2a2a;
+      color: var(--text);
+    }
+
+    .mode-btn:hover:not(.active) {
+      color: #bbb;
     }
 
     .route-label {
       font-size: 0.78rem;
       color: var(--muted);
-      white-space: nowrap;
+      flex: 1;
+      min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     #status {
-      margin-left: auto;
       font-size: 0.75rem;
       color: var(--muted);
-      white-space: nowrap;
+      flex-shrink: 0;
     }
 
     main {
@@ -99,11 +121,7 @@
       margin-top: 2px;
     }
 
-    .arrivals {
-      display: flex;
-      flex-direction: column;
-      gap: 0;
-    }
+    .arrivals { display: flex; flex-direction: column; }
 
     .arrival-row {
       display: flex;
@@ -113,9 +131,7 @@
       border-bottom: 1px solid var(--border);
     }
 
-    .arrival-row:last-child {
-      border-bottom: none;
-    }
+    .arrival-row:last-child { border-bottom: none; }
 
     .bullet {
       width: 28px;
@@ -157,13 +173,8 @@
       margin-left: 2px;
     }
 
-    .arrival-time.now {
-      color: #22c55e;
-    }
-
-    .arrival-time.soon {
-      color: #facc15;
-    }
+    .arrival-time.now  { color: #22c55e; }
+    .arrival-time.soon { color: #facc15; }
 
     .no-trains {
       color: var(--muted);
@@ -175,15 +186,11 @@
       padding: 20px 24px;
       color: #f87171;
       font-size: 0.9rem;
-      line-height: 1.5;
-    }
-
-    .error-msg a {
-      color: #60a5fa;
+      line-height: 1.6;
     }
 
     footer {
-      padding: 12px 24px;
+      padding: 10px 20px;
       border-top: 1px solid var(--border);
       display: flex;
       align-items: center;
@@ -191,10 +198,7 @@
       gap: 12px;
     }
 
-    footer span {
-      font-size: 0.75rem;
-      color: var(--muted);
-    }
+    footer span { font-size: 0.75rem; color: var(--muted); }
 
     .refresh-btn {
       background: none;
@@ -204,20 +208,15 @@
       border-radius: 6px;
       cursor: pointer;
       font-size: 0.78rem;
-      transition: border-color 0.15s;
     }
 
     .refresh-btn:hover { border-color: #555; }
     .refresh-btn:disabled { opacity: 0.4; cursor: default; }
 
-    @keyframes spin {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
-    .loading-spinner {
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .spinner {
       display: inline-block;
-      width: 10px;
-      height: 10px;
+      width: 10px; height: 10px;
       border: 2px solid var(--muted);
       border-top-color: var(--text);
       border-radius: 50%;
@@ -229,15 +228,18 @@
 </head>
 <body>
   <header>
-    <h1>Commute Board</h1>
-    <span class="route-label">331 Clinton St, Brooklyn → 75 Varick St, Manhattan</span>
+    <div class="mode-toggle">
+      <button class="mode-btn" id="btn-to"   onclick="setMode('to')">To office</button>
+      <button class="mode-btn" id="btn-from" onclick="setMode('from')">From office</button>
+    </div>
+    <span class="route-label" id="route-label"></span>
     <span id="status"></span>
   </header>
 
   <main id="board">
     <div class="station-card">
-      <div style="color: var(--muted); font-size: 0.9rem; padding: 20px 0;">
-        <span class="loading-spinner"></span> Loading train data…
+      <div style="color:var(--muted);font-size:0.9rem;padding:20px 0">
+        <span class="spinner"></span> Loading…
       </div>
     </div>
   </main>
@@ -249,28 +251,43 @@
 
   <script>
     const ROUTE_COLORS = {
-      'F': '#FF6319',
-      'A': '#2850AD',
-      'C': '#2850AD',
-      'E': '#2850AD',
-      '1': '#EE352E',
-      '2': '#EE352E',
-      '3': '#EE352E',
+      F: '#FF6319', A: '#2850AD', C: '#2850AD', E: '#2850AD',
+      '1': '#EE352E', '2': '#EE352E', '3': '#EE352E',
     };
 
+    const ROUTES = {
+      to:   { label: '331 Clinton St → 75 Varick St' },
+      from: { label: '75 Varick St → 331 Clinton St' },
+    };
+
+    // Auto-detect: before 2pm = to office, 2pm or later = from office
+    function autoMode() {
+      return new Date().getHours() < 14 ? 'to' : 'from';
+    }
+
+    let mode = autoMode();
+    let manualOverride = false;
     let refreshTimer = null;
 
+    function setMode(m, manual = true) {
+      mode = m;
+      if (manual) manualOverride = true;
+      document.getElementById('btn-to').classList.toggle('active', m === 'to');
+      document.getElementById('btn-from').classList.toggle('active', m === 'from');
+      document.getElementById('route-label').textContent = ROUTES[m].label;
+      load();
+    }
+
     function formatTime(minsAway) {
-      if (minsAway <= 0) return { text: 'Now', cls: 'now', unit: '' };
-      if (minsAway === 1) return { text: '1', cls: 'soon', unit: 'min' };
-      if (minsAway <= 4) return { text: String(minsAway), cls: 'soon', unit: 'min' };
+      if (minsAway <= 0) return { text: 'Now', cls: 'now',  unit: '' };
+      if (minsAway <= 1)  return { text: '1',   cls: 'soon', unit: 'min' };
+      if (minsAway <= 4)  return { text: String(minsAway), cls: 'soon', unit: 'min' };
       return { text: String(minsAway), cls: '', unit: 'min' };
     }
 
     function renderStation(s) {
       const card = document.createElement('div');
       card.className = 'station-card';
-
       card.innerHTML = `
         <div class="station-header">
           <div class="color-bar" style="background:${s.color}"></div>
@@ -279,12 +296,12 @@
             <p>${s.subtitle}</p>
           </div>
         </div>
-        <div class="arrivals" id="arrivals-${encodeURIComponent(s.label + s.subtitle)}"></div>
+        <div class="arrivals"></div>
       `;
 
       const arrivalsEl = card.querySelector('.arrivals');
 
-      if (!s.arrivals || s.arrivals.length === 0) {
+      if (!s.arrivals?.length) {
         arrivalsEl.innerHTML = `<p class="no-trains">No trains in the next hour</p>`;
       } else {
         for (const a of s.arrivals) {
@@ -300,7 +317,6 @@
           arrivalsEl.appendChild(row);
         }
       }
-
       return card;
     }
 
@@ -308,24 +324,18 @@
       const btn = document.getElementById('refreshBtn');
       const status = document.getElementById('status');
       btn.disabled = true;
-      status.innerHTML = '<span class="loading-spinner"></span>';
+      status.innerHTML = '<span class="spinner"></span>';
 
       try {
-        const res = await fetch('/api/departures');
+        const res = await fetch(`/api/departures?mode=${mode}`);
         const data = await res.json();
-
         const board = document.getElementById('board');
         board.innerHTML = '';
 
         if (!res.ok || data.error) {
           const msg = document.createElement('div');
           msg.className = 'error-msg';
-          msg.innerHTML = `
-            <strong>Error:</strong> ${data.error || 'Unknown error'}<br><br>
-            ${data.error && data.error.includes('MTA_API_KEY')
-              ? `Get a free API key at <a href="https://api.mta.info/" target="_blank">api.mta.info</a>, then restart the server with:<br><code>MTA_API_KEY=your_key node server.js</code>`
-              : ''}
-          `;
+          msg.textContent = data.error || 'Unknown error';
           board.appendChild(msg);
         } else {
           for (const station of data.stations) {
@@ -344,12 +354,16 @@
 
       btn.disabled = false;
 
-      // Auto-refresh every 30 seconds
       clearTimeout(refreshTimer);
-      refreshTimer = setTimeout(load, 30_000);
+      refreshTimer = setTimeout(() => {
+        // Re-evaluate auto mode on each refresh unless manually overridden
+        if (!manualOverride) setMode(autoMode(), false);
+        else load();
+      }, 30_000);
     }
 
-    load();
+    // Init
+    setMode(autoMode(), false);
   </script>
 </body>
 </html>
