@@ -209,6 +209,78 @@ function parseArrivals(feed, stopIds, allowedRoutes) {
   return arrivals.slice(0, 8);
 }
 
+// ── Weather ──────────────────────────────────────────────────────────
+// 331 Clinton St, Carroll Gardens
+const WEATHER_LAT = 40.6793;
+const WEATHER_LON = -73.9990;
+
+const WMO_LABELS = {
+  0:  ['☀️',  'Clear'],
+  1:  ['🌤️', 'Mainly clear'],
+  2:  ['⛅',  'Partly cloudy'],
+  3:  ['☁️',  'Overcast'],
+  45: ['🌫️', 'Foggy'],
+  48: ['🌫️', 'Icy fog'],
+  51: ['🌦️', 'Light drizzle'],
+  53: ['🌦️', 'Drizzle'],
+  55: ['🌦️', 'Heavy drizzle'],
+  61: ['🌧️', 'Light rain'],
+  63: ['🌧️', 'Rain'],
+  65: ['🌧️', 'Heavy rain'],
+  71: ['🌨️', 'Light snow'],
+  73: ['🌨️', 'Snow'],
+  75: ['🌨️', 'Heavy snow'],
+  80: ['🌧️', 'Showers'],
+  81: ['🌧️', 'Showers'],
+  82: ['🌧️', 'Heavy showers'],
+  95: ['⛈️',  'Thunderstorm'],
+  96: ['⛈️',  'Thunderstorm'],
+  99: ['⛈️',  'Thunderstorm'],
+};
+
+function wmoLabel(code) {
+  return WMO_LABELS[code] ?? ['🌡️', `Code ${code}`];
+}
+
+// Walk is good if: no meaningful precip, not too windy, no rain/snow codes
+function walkAssessment(tempF, precipIn, windMph, wmoCode) {
+  if (wmoCode >= 51)    return { verdict: 'skip',  label: 'Wet out — take the train' };
+  if (precipIn >= 0.01) return { verdict: 'skip',  label: 'Precipitation — take the train' };
+  if (windMph  >= 25)   return { verdict: 'skip',  label: 'Very windy — take the train' };
+  if (tempF    <= 20)   return { verdict: 'skip',  label: 'Too cold — take the train' };
+  if (windMph  >= 18)   return { verdict: 'ok',    label: 'Windy but walkable' };
+  if (tempF    <= 35)   return { verdict: 'ok',    label: 'Cold but walkable' };
+  return                       { verdict: 'great', label: 'Nice out — worth the walk' };
+}
+
+app.get('/api/weather', async (req, res) => {
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast` +
+      `?latitude=${WEATHER_LAT}&longitude=${WEATHER_LON}` +
+      `&current=temperature_2m,precipitation,weathercode,windspeed_10m` +
+      `&temperature_unit=fahrenheit&windspeed_unit=mph&precipitation_unit=inch` +
+      `&timezone=America%2FNew_York`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`Open-Meteo ${r.status}`);
+    const json = await r.json();
+    const c = json.current;
+    const tempF    = Math.round(c.temperature_2m);
+    const precipIn = c.precipitation;
+    const windMph  = Math.round(c.windspeed_10m);
+    const wmoCode  = c.weathercode;
+    const [icon, condition] = wmoLabel(wmoCode);
+    res.json({
+      tempF, precipIn, windMph, wmoCode,
+      icon, condition,
+      walk: walkAssessment(tempF, precipIn, windMph, wmoCode),
+      fetchedAt: Date.now(),
+    });
+  } catch (err) {
+    console.error('Weather error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/api/plans', async (req, res) => {

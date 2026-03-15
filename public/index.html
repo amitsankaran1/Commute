@@ -321,6 +321,58 @@
 
     .no-trains { color: var(--muted); font-size: 0.83rem; padding: 8px 0; }
 
+    /* ── Weather strip ── */
+    .weather-strip {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-size: 0.85rem;
+    }
+
+    .weather-main {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .weather-icon { font-size: 1.3rem; line-height: 1; flex-shrink: 0; }
+
+    .weather-temp {
+      font-size: 1.2rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      flex-shrink: 0;
+    }
+
+    .weather-condition { color: var(--muted); flex-shrink: 0; }
+
+    .weather-details {
+      display: flex;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      flex-shrink: 0;
+    }
+
+    .weather-walk {
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 6px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .weather-walk.great { background: #14532d44; color: #4ade80; border: 1px solid #14532d; }
+    .weather-walk.ok    { background: #78350f44; color: #fbbf24; border: 1px solid #78350f; }
+    .weather-walk.skip  { background: #1f1f1f;   color: var(--muted); border: 1px solid var(--border); }
+
     /* ── Error / Loading ── */
     .msg-card {
       background: var(--card);
@@ -582,6 +634,26 @@
       board.appendChild(grid);
     }
 
+    // ── Weather strip ─────────────────────────────────────────────────
+
+    function renderWeatherStrip(w) {
+      const el = document.createElement('div');
+      el.className = 'weather-strip';
+      const windStr = w.windMph > 0 ? `💨 ${w.windMph} mph` : '';
+      const precipStr = w.precipIn > 0 ? `🌂 ${w.precipIn.toFixed(2)}"` : '';
+      const details = [windStr, precipStr].filter(Boolean).join(' · ');
+      el.innerHTML = `
+        <div class="weather-main">
+          <span class="weather-icon">${w.icon}</span>
+          <span class="weather-temp">${w.tempF}°F</span>
+          <span class="weather-condition">${w.condition}</span>
+          ${details ? `<span class="weather-details">${details}</span>` : ''}
+        </div>
+        <div class="weather-walk ${w.walk.verdict}">${w.walk.label}</div>
+      `;
+      return el;
+    }
+
     // ── Load ─────────────────────────────────────────────────────────
 
     async function load() {
@@ -592,15 +664,24 @@
 
       try {
         const url = mode === 'to' ? '/api/plans' : '/api/departures';
-        const res = await fetch(url);
+        const fetches = [fetch(url)];
+        if (mode === 'to') fetches.push(fetch('/api/weather'));
+        const [res, weatherRes] = await Promise.all(fetches);
         const data = await res.json();
         const board = document.getElementById('board');
 
         if (!res.ok || data.error) {
           board.innerHTML = `<div class="msg-card error">${data.error || 'Unknown error'}</div>`;
         } else {
-          if (mode === 'to') renderPlans(data);
-          else               renderStations(data);
+          if (mode === 'to') {
+            renderPlans(data);
+            if (weatherRes) {
+              const w = await weatherRes.json();
+              if (!w.error) board.prepend(renderWeatherStrip(w));
+            }
+          } else {
+            renderStations(data);
+          }
 
           const d = new Date(data.fetchedAt);
           document.getElementById('last-updated').textContent =
