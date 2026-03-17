@@ -2,10 +2,35 @@ const express = require('express');
 const fetch = require('node-fetch');
 const GtfsRealtimeBindings = require('gtfs-realtime-bindings');
 const path = require('path');
+const fs = require('fs');
+const webpush = require('web-push');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+app.use(express.json());
 
+// ── Persistence helpers ───────────────────────────────────────────────
+const DATA_DIR = path.join(__dirname, 'data');
+fs.mkdirSync(DATA_DIR, { recursive: true });
+
+function readJSON(file, fallback) {
+  try { return JSON.parse(fs.readFileSync(path.join(DATA_DIR, file), 'utf8')); }
+  catch { return fallback; }
+}
+function writeJSON(file, data) {
+  fs.writeFileSync(path.join(DATA_DIR, file), JSON.stringify(data, null, 2));
+}
+
+// ── VAPID keys (generated once, stored locally) ───────────────────────
+let vapidKeys = readJSON('vapid.json', null);
+if (!vapidKeys) {
+  vapidKeys = webpush.generateVAPIDKeys();
+  writeJSON('vapid.json', vapidKeys);
+  console.log('Generated new VAPID keys.');
+}
+webpush.setVapidDetails('mailto:commute@localhost', vapidKeys.publicKey, vapidKeys.privateKey);
+
+// ── MTA feeds ─────────────────────────────────────────────────────────
 const FEEDS = {
   bdfm:  'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-bdfm',
   ace:   'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace',
@@ -312,5 +337,112 @@ app.get('/api/departures', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// ── Push API ──────────────────────────────────────────────────────────
+
+app.get('/api/push/vapid-public-key', (_req, res) => {
+  res.json({ key: vapidKeys.publicKey });
+});
+
+app.post('/api/push/subscribe', (req, res) => {
+  const sub = req.body;
+  if (!sub?.endpoint) return res.status(400).json({ error: 'Invalid subscription' });
+  const subs = readJSON('subscriptions.json', []);
+  if (!subs.some(s => s.endpoint === sub.endpoint)) subs.push(sub);
+  writeJSON('subscriptions.json', subs);
+  res.json({ ok: true });
+});
+
+app.delete('/api/push/subscribe', (req, res) => {
+  const { endpoint } = req.body;
+  const subs = readJSON('subscriptions.json', []).filter(s => s.endpoint !== endpoint);
+  writeJSON('subscriptions.json', subs);
+  res.json({ ok: true });
+});
+
+app.get('/api/alert-config', (_req, res) => {
+  res.json(readJSON('alert-config.json', { enabled: false, time: '08:15' }));
+});
+
+app.post('/api/alert-config', (req, res) => {
+  const { enabled, time } = req.body;
+  if (typeof enabled !== 'boolean' || !/^\d{2}:\d{2}$/.test(time))
+    return res.status(400).json({ error: 'Invalid config' });
+  writeJSON('alert-config.json', { enabled, time });
+  res.json({ ok: true });
+});
+
+// Send a test push to all subscriptions immediately
+app.post('/api/push/test', async (_req, res) => {
+  const sent = await sendPushAlerts({ title: 'Test alert', body: 'Commute Board push is working!' });
+  res.json({ sent });
+});
+
+// ── Push alert helpers ────────────────────────────────────────────────
+
+function fmtTimeFromTs(ts) {
+  return new Date(ts * 1000).toLocaleTimeString('en-US', {
+    hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/New_York'
+  });
+}
+
+async function sendPushAlerts(overridePayload) {
+  const subs = readJSON('subscriptions.json', []);
+  if (!subs.length) return 0;
+
+  let payload = overridePayload;
+  if (!payload) {
+    try {
+      const [bdfm, g, ace] = await Promise.all([
+        fetchFeed(FEEDS.bdfm), fetchFeed(FEEDS.g), fetchFeed(FEEDS.ace),
+      ]);
+      const plans = computePlans({ bdfm, g, ace });
+      const plan = plans.planA;
+      if (!plan) return 0;
+      const leaveStr = plan.leaveInMin <= 0 ? 'Leave now' : `Leave in ${plan.leaveInMin} min`;
+      payload = {
+        title: leaveStr,
+        body: `${plan.routeLabel} · arrive ~${fmtTimeFromTs(plan.officeTs)}`,
+      };
+    } catch (err) {
+      console.error('Alert fetch error:', err.message);
+      return 0;
+    }
+  }
+
+  const deadEndpoints = [];
+  await Promise.all(subs.map(sub =>
+    webpush.sendNotification(sub, JSON.stringify(payload)).catch(err => {
+      if (err.statusCode === 404 || err.statusCode === 410) deadEndpoints.push(sub.endpoint);
+      else console.error('Push send error:', err.message);
+    })
+  ));
+
+  if (deadEndpoints.length) {
+    const alive = subs.filter(s => !deadEndpoints.includes(s.endpoint));
+    writeJSON('subscriptions.json', alive);
+  }
+
+  return subs.length - deadEndpoints.length;
+}
+
+// ── Alert scheduler (checks every 30 s, fires once per day at config time) ──
+let lastAlertDate = '';
+
+function checkAlertTime() {
+  const config = readJSON('alert-config.json', { enabled: false, time: '08:15' });
+  if (!config.enabled) return;
+
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const today = now.toDateString();
+
+  if (hhmm === config.time && lastAlertDate !== today) {
+    lastAlertDate = today;
+    sendPushAlerts().then(n => console.log(`Push alert sent to ${n} subscriber(s).`));
+  }
+}
+
+setInterval(checkAlertTime, 30_000);
 
 app.listen(PORT, () => console.log(`NYC Commute Board → http://localhost:${PORT}`));

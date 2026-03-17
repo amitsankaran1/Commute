@@ -4,6 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Commute Board</title>
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#0e0e0e" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Commute" />
+  <link rel="apple-touch-icon" href="/icons/icon.svg" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -373,6 +379,132 @@
     .weather-walk.ok    { background: #78350f44; color: #fbbf24; border: 1px solid #78350f; }
     .weather-walk.skip  { background: #1f1f1f;   color: var(--muted); border: 1px solid var(--border); }
 
+    /* ── Bell button ── */
+    .bell-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 1rem;
+      padding: 5px 9px;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+      flex-shrink: 0;
+    }
+    .bell-btn:hover { color: var(--text); border-color: #555; }
+    .bell-btn.active { color: #facc15; border-color: #78350f; }
+
+    /* ── Settings sheet ── */
+    .sheet-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.6);
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.25s;
+      z-index: 10;
+    }
+    .sheet-backdrop.open { opacity: 1; pointer-events: auto; }
+
+    .sheet {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: #1a1a1a;
+      border-top: 1px solid var(--border);
+      border-radius: 20px 20px 0 0;
+      padding: 0 0 env(safe-area-inset-bottom, 16px);
+      transform: translateY(100%);
+      transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+      z-index: 11;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .sheet.open { transform: translateY(0); }
+
+    .sheet-handle {
+      width: 36px; height: 4px;
+      background: #444; border-radius: 2px;
+      margin: 12px auto 0;
+    }
+
+    .sheet-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sheet-title { font-weight: 600; font-size: 1rem; }
+
+    .sheet-close {
+      background: none; border: none;
+      color: var(--muted); font-size: 1rem;
+      cursor: pointer; padding: 4px 8px;
+      border-radius: 6px;
+    }
+    .sheet-close:hover { color: var(--text); background: #2a2a2a; }
+
+    .sheet-body { padding: 8px 20px 16px; display: flex; flex-direction: column; gap: 4px; }
+
+    .setting-row {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px; padding: 14px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .setting-row:last-of-type { border-bottom: none; }
+
+    .setting-label { flex: 1; cursor: default; }
+    .setting-name  { font-size: 0.9rem; font-weight: 500; }
+    .setting-desc  { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+
+    /* iOS-style toggle */
+    .toggle { position: relative; flex-shrink: 0; }
+    .toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+    .toggle-track {
+      display: block; width: 48px; height: 28px;
+      background: #3a3a3a; border-radius: 14px;
+      transition: background 0.2s; cursor: pointer;
+      position: relative;
+    }
+    .toggle input:checked + .toggle-track { background: #34d399; }
+    .toggle-thumb {
+      position: absolute; top: 3px; left: 3px;
+      width: 22px; height: 22px;
+      background: white; border-radius: 50%;
+      transition: left 0.2s; box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    }
+    .toggle input:checked + .toggle-track .toggle-thumb { left: 23px; }
+
+    .time-input {
+      background: #2a2a2a; border: 1px solid var(--border);
+      color: var(--text); border-radius: 8px;
+      padding: 8px 12px; font-size: 1rem;
+      font-family: inherit; outline: none;
+      width: 130px; flex-shrink: 0;
+    }
+    .time-input:focus { border-color: #555; }
+
+    #timeRow { transition: opacity 0.2s; }
+    #timeRow.hidden { opacity: 0.3; pointer-events: none; }
+
+    .sheet-actions {
+      display: flex; gap: 10px; padding-top: 8px;
+    }
+
+    .sheet-btn {
+      flex: 1; padding: 12px;
+      border-radius: 10px; border: none;
+      font-size: 0.9rem; font-weight: 600;
+      cursor: pointer; transition: opacity 0.15s;
+    }
+    .sheet-btn:hover { opacity: 0.85; }
+    .sheet-btn.primary   { background: #FF6319; color: white; }
+    .sheet-btn.secondary { background: #2a2a2a; color: var(--text); border: 1px solid var(--border); }
+
+    .sheet-note {
+      font-size: 0.75rem; color: var(--muted);
+      text-align: center; min-height: 1.2em;
+      padding-top: 4px;
+    }
+    .sheet-note.ok  { color: #34d399; }
+    .sheet-note.err { color: #f87171; }
+
     /* ── Error / Loading ── */
     .msg-card {
       background: var(--card);
@@ -432,7 +564,46 @@
     </div>
     <span class="route-label" id="route-label"></span>
     <span id="status"></span>
+    <button class="bell-btn" id="bellBtn" onclick="openSettings()" title="Alert settings" aria-label="Alert settings">🔔</button>
   </header>
+
+  <!-- Settings sheet -->
+  <div class="sheet-backdrop" id="sheetBackdrop" onclick="closeSettings()"></div>
+  <div class="sheet" id="settingsSheet" role="dialog" aria-modal="true" aria-label="Alert settings">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <span class="sheet-title">Alert settings</span>
+      <button class="sheet-close" onclick="closeSettings()">✕</button>
+    </div>
+
+    <div class="sheet-body">
+      <div class="setting-row">
+        <div class="setting-label">
+          <div class="setting-name">Morning push alert</div>
+          <div class="setting-desc">Pings you when it's time to leave</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="alertEnabled" onchange="onAlertToggle()" />
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+      </div>
+
+      <div class="setting-row" id="timeRow">
+        <label class="setting-label" for="alertTime">
+          <div class="setting-name">Alert time</div>
+          <div class="setting-desc">Sends a real-time "leave in X min" notification</div>
+        </label>
+        <input type="time" class="time-input" id="alertTime" />
+      </div>
+
+      <div class="sheet-actions">
+        <button class="sheet-btn secondary" id="testBtn" onclick="sendTestAlert()">Send test</button>
+        <button class="sheet-btn primary" onclick="saveSettings()">Save</button>
+      </div>
+
+      <div class="sheet-note" id="sheetNote"></div>
+    </div>
+  </div>
 
   <main id="board">
     <div class="msg-card"><span class="spinner"></span> Loading…</div>
@@ -702,6 +873,139 @@
         }
         load();
       }, 30_000);
+    }
+
+    // ── PWA: Service Worker registration ─────────────────────────────
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(err =>
+        console.warn('SW registration failed:', err)
+      );
+    }
+
+    // ── Settings sheet ────────────────────────────────────────────────
+    let vapidPublicKey = null;
+
+    function urlBase64ToUint8Array(base64String) {
+      const padding = '='.repeat((4 - base64String.length % 4) % 4);
+      const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+      const raw = atob(base64);
+      return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+    }
+
+    async function ensureVapidKey() {
+      if (vapidPublicKey) return vapidPublicKey;
+      const r = await fetch('/api/push/vapid-public-key');
+      vapidPublicKey = (await r.json()).key;
+      return vapidPublicKey;
+    }
+
+    async function openSettings() {
+      // Load current config from server
+      const cfg = await fetch('/api/alert-config').then(r => r.json()).catch(() => ({ enabled: false, time: '08:15' }));
+      document.getElementById('alertEnabled').checked = cfg.enabled;
+      document.getElementById('alertTime').value = cfg.time;
+      document.getElementById('timeRow').classList.toggle('hidden', !cfg.enabled);
+      document.getElementById('sheetNote').textContent = '';
+      document.getElementById('sheetNote').className = 'sheet-note';
+
+      document.getElementById('settingsSheet').classList.add('open');
+      document.getElementById('sheetBackdrop').classList.add('open');
+      document.getElementById('bellBtn').classList.add('active');
+    }
+
+    function closeSettings() {
+      document.getElementById('settingsSheet').classList.remove('open');
+      document.getElementById('sheetBackdrop').classList.remove('open');
+      document.getElementById('bellBtn').classList.remove('active');
+    }
+
+    function onAlertToggle() {
+      const enabled = document.getElementById('alertEnabled').checked;
+      document.getElementById('timeRow').classList.toggle('hidden', !enabled);
+    }
+
+    function showNote(msg, type = '') {
+      const el = document.getElementById('sheetNote');
+      el.textContent = msg;
+      el.className = 'sheet-note' + (type ? ' ' + type : '');
+    }
+
+    async function getPushSubscription() {
+      if (!('Notification' in window) || !('serviceWorker' in navigator)) return null;
+
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        showNote('Notification permission denied.', 'err');
+        return null;
+      }
+
+      const reg = await navigator.serviceWorker.ready;
+      const key = await ensureVapidKey();
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(key),
+        });
+      }
+      return sub;
+    }
+
+    async function saveSettings() {
+      const enabled = document.getElementById('alertEnabled').checked;
+      const time    = document.getElementById('alertTime').value;
+
+      if (enabled) {
+        showNote('Subscribing…');
+        const sub = await getPushSubscription();
+        if (!sub) return; // permission denied, message already shown
+
+        const r = await fetch('/api/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(sub),
+        });
+        if (!r.ok) { showNote('Failed to save subscription.', 'err'); return; }
+      }
+
+      const r = await fetch('/api/alert-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled, time }),
+      });
+
+      if (r.ok) {
+        showNote(enabled ? `Alert set for ${time} ✓` : 'Alerts disabled.', 'ok');
+      } else {
+        showNote('Failed to save.', 'err');
+      }
+    }
+
+    async function sendTestAlert() {
+      const btn = document.getElementById('testBtn');
+      btn.disabled = true;
+      showNote('Sending test…');
+
+      // Make sure we're subscribed first
+      const sub = await getPushSubscription();
+      if (sub) {
+        await fetch('/api/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(sub),
+        });
+      }
+
+      const r = await fetch('/api/push/test', { method: 'POST' });
+      const data = await r.json().catch(() => ({}));
+      if (r.ok && data.sent > 0) {
+        showNote('Test notification sent!', 'ok');
+      } else if (data.sent === 0) {
+        showNote('No subscribers — try saving first.', 'err');
+      } else {
+        showNote('Failed to send test.', 'err');
+      }
+      btn.disabled = false;
     }
 
     setMode(mode, false);
