@@ -559,8 +559,9 @@
 <body>
   <header>
     <div class="mode-toggle">
-      <button class="mode-btn" id="btn-to"   onclick="setMode('to')">To office</button>
-      <button class="mode-btn" id="btn-from" onclick="setMode('from')">From office</button>
+      <button class="mode-btn" id="btn-to"     onclick="setMode('to')">To office</button>
+      <button class="mode-btn" id="btn-from"   onclick="setMode('from')">From office</button>
+      <button class="mode-btn" id="btn-bergen" onclick="setMode('bergen')">At Bergen St</button>
     </div>
     <span class="route-label" id="route-label"></span>
     <span id="status"></span>
@@ -622,8 +623,9 @@
     };
 
     const ROUTE_LABELS = {
-      to:   '331 Clinton St → 75 Varick St',
-      from: '75 Varick St → 331 Clinton St',
+      to:     '331 Clinton St → 75 Varick St',
+      from:   '75 Varick St → 331 Clinton St',
+      bergen: 'Bergen St → 75 Varick St',
     };
 
     let mode = new Date().getHours() < 14 ? 'to' : 'from';
@@ -633,9 +635,10 @@
     function setMode(m, manual = true) {
       mode = m;
       if (manual) manualOverride = true;
-      document.getElementById('btn-to').classList.toggle('active', m === 'to');
-      document.getElementById('btn-from').classList.toggle('active', m === 'from');
-      document.getElementById('route-label').textContent = ROUTE_LABELS[m];
+      document.getElementById('btn-to').classList.toggle('active',     m === 'to');
+      document.getElementById('btn-from').classList.toggle('active',   m === 'from');
+      document.getElementById('btn-bergen').classList.toggle('active', m === 'bergen');
+      document.getElementById('route-label').textContent = ROUTE_LABELS[m] ?? '';
       load();
     }
 
@@ -834,7 +837,9 @@
       status.innerHTML = '<span class="spinner"></span>';
 
       try {
-        const url = mode === 'to' ? '/api/plans' : '/api/departures';
+        const url = mode === 'to'     ? '/api/plans'     :
+                    mode === 'bergen' ? '/api/bergen'     :
+                                        '/api/departures';
         const fetches = [fetch(url)];
         if (mode === 'to') fetches.push(fetch('/api/weather'));
         const [res, weatherRes] = await Promise.all(fetches);
@@ -844,9 +849,9 @@
         if (!res.ok || data.error) {
           board.innerHTML = `<div class="msg-card error">${data.error || 'Unknown error'}</div>`;
         } else {
-          if (mode === 'to') {
+          if (mode === 'to' || mode === 'bergen') {
             renderPlans(data);
-            if (weatherRes) {
+            if (mode === 'to' && weatherRes) {
               const w = await weatherRes.json();
               if (!w.error) board.prepend(renderWeatherStrip(w));
             }

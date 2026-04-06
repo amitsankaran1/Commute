@@ -103,45 +103,39 @@ function upcoming(feed, stopIds, allowedRoutes) {
   return results;
 }
 
-function buildFPlan(f, acAtJay, now) {
+function buildFPlan(f, acAtJay, now, walkMins = T.walkHomeToBergen) {
   const arrivalAtJay = f.ts + T.fRide * 60;
   const ac = acAtJay.find(t => t.ts >= arrivalAtJay + T.xferJaySt * 60);
   if (!ac) return null;
   const officeTs = ac.ts + (T.acFromJaySt + T.walkCanalToOffice) * 60;
-  const leaveInMin = Math.round((f.ts - T.walkHomeToBergen * 60 - now) / 60);
+  const leaveInMin = Math.round((f.ts - walkMins * 60 - now) / 60);
   if (leaveInMin < -3) return null;
-  return {
-    routeLabel: 'F → A/C',
-    leaveInMin,
-    officeTs,
-    legs: [
-      { kind: 'walk',  label: 'Walk to Bergen St',   mins: T.walkHomeToBergen },
-      { kind: 'train', route: 'F',       label: 'Bergen St → Jay St',  mins: T.fRide,        ts: f.ts  },
-      { kind: 'train', route: ac.route,  label: 'Jay St → Canal St',   mins: T.acFromJaySt,  ts: ac.ts },
-      { kind: 'walk',  label: 'Walk to 75 Varick',   mins: T.walkCanalToOffice },
-    ],
-  };
+  const legs = [];
+  if (walkMins > 0) legs.push({ kind: 'walk', label: 'Walk to Bergen St', mins: walkMins });
+  legs.push(
+    { kind: 'train', route: 'F',      label: 'Bergen St → Jay St', mins: T.fRide,       ts: f.ts  },
+    { kind: 'train', route: ac.route, label: 'Jay St → Canal St',  mins: T.acFromJaySt, ts: ac.ts },
+    { kind: 'walk',  label: 'Walk to 75 Varick',                    mins: T.walkCanalToOffice },
+  );
+  return { routeLabel: 'F → A/C', leaveInMin, officeTs, legs };
 }
 
-function buildGPlan(g, acAtHoyt, now) {
+function buildGPlan(g, acAtHoyt, now, walkMins = T.walkHomeToBergen) {
   const readyAtHoyt = g.ts + (T.gRide + T.xferHoyt) * 60;
   const ac = acAtHoyt.find(t => t.ts >= readyAtHoyt);
   if (!ac) return null;
   const officeTs = ac.ts + (T.acFromHoyt + T.walkCanalToOffice) * 60;
-  const leaveInMin = Math.round((g.ts - T.walkHomeToBergen * 60 - now) / 60);
+  const leaveInMin = Math.round((g.ts - walkMins * 60 - now) / 60);
   if (leaveInMin < -3) return null;
-  return {
-    routeLabel: 'G → A/C',
-    leaveInMin,
-    officeTs,
-    legs: [
-      { kind: 'walk',     label: 'Walk to Bergen St',            mins: T.walkHomeToBergen },
-      { kind: 'train',    route: 'G',       label: 'Bergen St → Hoyt',  mins: T.gRide,       ts: g.ts  },
-      { kind: 'transfer', label: 'Transfer to A/C at Hoyt',     mins: T.xferHoyt },
-      { kind: 'train',    route: ac.route,  label: 'Hoyt → Canal St',   mins: T.acFromHoyt,  ts: ac.ts },
-      { kind: 'walk',     label: 'Walk to 75 Varick',            mins: T.walkCanalToOffice },
-    ],
-  };
+  const legs = [];
+  if (walkMins > 0) legs.push({ kind: 'walk', label: 'Walk to Bergen St', mins: walkMins });
+  legs.push(
+    { kind: 'train',    route: 'G',      label: 'Bergen St → Hoyt', mins: T.gRide,      ts: g.ts  },
+    { kind: 'transfer', label: 'Transfer to A/C at Hoyt',            mins: T.xferHoyt },
+    { kind: 'train',    route: ac.route, label: 'Hoyt → Canal St',  mins: T.acFromHoyt, ts: ac.ts },
+    { kind: 'walk',     label: 'Walk to 75 Varick',                  mins: T.walkCanalToOffice },
+  );
+  return { routeLabel: 'G → A/C', leaveInMin, officeTs, legs };
 }
 
 function computePlans(feeds) {
@@ -210,6 +204,62 @@ function computePlans(feeds) {
   } : null;
 
   return { planA, planANext, planB, planBDeltaMins, walkFallback, fetchedAt: Date.now() };
+}
+
+function computeBergenPlans(feeds) {
+  const now = Math.floor(Date.now() / 1000);
+
+  const fTrains  = upcoming(feeds.bdfm, ['F20N'], ['F']);
+  const gTrains  = upcoming(feeds.g,    ['F20N'], ['G']);
+  const acAtJay  = upcoming(feeds.ace,  ['A41N'], ['A', 'C']);
+  const acAtHoyt = upcoming(feeds.ace,  ['A42N'], ['A', 'C']);
+
+  // Build first two valid F plans with walkMins=0 (already at station)
+  const fPlans = [];
+  for (const f of fTrains) {
+    const plan = buildFPlan(f, acAtJay, now, 0);
+    if (plan) fPlans.push(plan);
+    if (fPlans.length >= 2) break;
+  }
+
+  // Build best G plan with walkMins=0
+  let gPlan = null;
+  for (const g of gTrains) {
+    const plan = buildGPlan(g, acAtHoyt, now, 0);
+    if (plan) { gPlan = plan; break; }
+  }
+
+  // Same ranking logic as computePlans()
+  const fBest = fPlans[0] || null;
+  const fNext = fPlans[1] || null;
+
+  let planA = null, planANext = null, planB = null, planBDeltaMins = null;
+
+  if (fBest && gPlan) {
+    planBDeltaMins = Math.round((gPlan.officeTs - fBest.officeTs) / 60);
+
+    if (planBDeltaMins < 0) {
+      planA     = { ...gPlan, rank: 'A' };
+      planANext = null;
+      planB     = Math.abs(planBDeltaMins) <= PLAN_B_MAX_DELTA_MINS
+        ? { ...fBest, rank: 'B', deltaMinutes: Math.abs(planBDeltaMins) }
+        : null;
+      planBDeltaMins = Math.abs(planBDeltaMins);
+    } else {
+      planA     = { ...fBest, rank: 'A' };
+      planANext = fNext;
+      planB     = planBDeltaMins <= PLAN_B_MAX_DELTA_MINS
+        ? { ...gPlan, rank: 'B', deltaMinutes: planBDeltaMins }
+        : null;
+    }
+  } else if (fBest) {
+    planA     = { ...fBest, rank: 'A' };
+    planANext = fNext;
+  } else if (gPlan) {
+    planA = { ...gPlan, rank: 'A' };
+  }
+
+  return { planA, planANext, planB, planBDeltaMins, walkFallback: null, fetchedAt: Date.now() };
 }
 
 function parseArrivals(feed, stopIds, allowedRoutes) {
@@ -318,6 +368,20 @@ app.get('/api/plans', async (req, res) => {
     res.json(computePlans({ bdfm, g, ace }));
   } catch (err) {
     console.error('Plans error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/bergen', async (req, res) => {
+  try {
+    const [bdfm, g, ace] = await Promise.all([
+      fetchFeed(FEEDS.bdfm),
+      fetchFeed(FEEDS.g),
+      fetchFeed(FEEDS.ace),
+    ]);
+    res.json(computeBergenPlans({ bdfm, g, ace }));
+  } catch (err) {
+    console.error('Bergen error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
